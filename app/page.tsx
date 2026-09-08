@@ -21,7 +21,7 @@ const correct: Record<number, Answer> = {
   5: 'repeat:2,pick,right,place,left,endRepeat',
   6: 'repeat4,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat',
   7: 'repeat4,pick,ifBottle,right,place,left,else,left,place,right,endIf,endRepeat',
-  8: 'repeat2,repeat3,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat,right,endRepeat',
+  8: 'repeat3,pick,ifBottle,repeat2,right,endRepeat,place,repeat2,left,endRepeat,else,repeat3,right,endRepeat,place,repeat3,left,endRepeat,endIf,endRepeat,right,repeat3,pick,ifBottle,right,place,left,else,repeat2,right,endRepeat,place,repeat2,left,endRepeat,endIf,endRepeat',
 };
 const programmingTokenPattern = /^(?:repeat[234]|repeat:\d+|pick|left|right|place|ifBottle|else|endIf|endRepeat)$/;
 const normalizeProgrammingAnswer = (value: Answer | undefined) => String(value ?? '').split(',').map(token => token.trim()).filter(token => programmingTokenPattern.test(token)).join(',');
@@ -130,7 +130,7 @@ function QuestionBody({ id, answer, setAnswer }: { id: number; answer: Answer; s
   if (id === 5) return <><p className="prompt">Programe a garra para transportar as duas latas, uma de cada vez, usando uma repetição.</p><ClawScene variant="two"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
   if (id === 6) return <><p className="prompt">Programe a garra para separar quatro objetos. Garrafas vão para a esquerda e latas para a direita.</p><ClawScene variant="mixed"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
   if (id === 7) return <><p className="prompt">Monte um programa eficiente para ordenar os quatro objetos, usando repetição e uma condição.</p><ClawScene variant="efficient"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
-  return <><p className="prompt">Programe a garra para ordenar as duas colunas. Use uma repetição para as colunas e outra para os objetos de cada coluna.</p><ClawScene variant="final"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  return <><p className="prompt">Programe a garra para ordenar os três objetos de cada coluna. Ao final, a coluna 3 deve ter somente garrafas e a coluna 4 somente latas.</p><ClawScene variant="final"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
 }
 
 export default function Home() {

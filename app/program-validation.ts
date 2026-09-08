@@ -50,11 +50,9 @@ export function reachesQuestionEightGoal(tokens: string[]) {
   if (!parsed || parsed.next !== tokens.length) return false;
   type Item = 'bottle' | 'can';
   const state = {
-    sources: [['can', 'bottle', 'can'], ['bottle', 'can', 'bottle']] as Item[][],
-    source: 0,
-    offset: 0,
+    columns: [['can', 'bottle', 'can'], ['bottle', 'can', 'bottle'], [], []] as Item[][],
+    position: 0,
     held: null as Item | null,
-    placed: 0,
     steps: 0,
   };
   const execute = (nodes: ProgramNode[]): boolean => {
@@ -69,22 +67,21 @@ export function reachesQuestionEightGoal(tokens: string[]) {
         continue;
       }
       if (node.token === 'pick') {
-        const source = state.sources[state.source];
-        if (state.held || state.offset !== 0 || !source?.length) return false;
-        state.held = source.pop() ?? null;
+        const column = state.columns[state.position];
+        if (state.held || !column.length) return false;
+        state.held = column.pop() ?? null;
       } else if (node.token === 'place') {
-        if (!state.held || state.offset === 0) return false;
-        const correctSide = state.held === 'bottle' ? state.offset < 0 : state.offset > 0;
-        if (!correctSide) return false;
+        if (!state.held) return false;
+        state.columns[state.position].push(state.held);
         state.held = null;
-        state.placed += 1;
-      } else if (state.held || state.offset !== 0) {
-        state.offset += node.token === 'left' ? -1 : 1;
       } else {
-        state.source += node.token === 'left' ? -1 : 1;
+        const destination = state.position + (node.token === 'left' ? -1 : 1);
+        if (destination < 0 || destination >= state.columns.length) return false;
+        state.position = destination;
       }
     }
     return true;
   };
-  return execute(parsed.nodes) && state.placed === 6 && state.held === null && state.sources.every(source => source.length === 0);
+  const goal: Item[][] = [[], [], ['bottle', 'bottle', 'bottle'], ['can', 'can', 'can']];
+  return execute(parsed.nodes) && state.held === null && state.columns.every((column, index) => column.join(',') === goal[index].join(','));
 }
