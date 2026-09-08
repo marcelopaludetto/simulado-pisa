@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { reachesQuestionEightGoal } from './program-validation';
 
 type Answer = string | number | null;
 
@@ -24,7 +25,7 @@ const correct: Record<number, Answer> = {
 };
 const programmingTokenPattern = /^(?:repeat[234]|repeat:\d+|pick|left|right|place|ifBottle|else|endIf|endRepeat)$/;
 const normalizeProgrammingAnswer = (value: Answer | undefined) => String(value ?? '').split(',').map(token => token.trim()).filter(token => programmingTokenPattern.test(token)).join(',');
-const isCorrectAnswer = (id: number, value: Answer | undefined) => id >= 5 ? normalizeProgrammingAnswer(value) === correct[id] : value === correct[id];
+const isCorrectAnswer = (id: number, value: Answer | undefined) => id === 8 ? reachesQuestionEightGoal(normalizeProgrammingAnswer(value).split(',')) : id >= 5 ? normalizeProgrammingAnswer(value) === correct[id] : value === correct[id];
 const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : id === 5 ? /^repeat:\d+,/.test(String(value ?? '')) && String(value).includes('endRepeat') : id >= 6 ? String(value ?? '').split(',').length >= 5 && String(value).includes('endRepeat') : value !== undefined && value !== null && value !== '';
 
 function MiniGrid({ rows = 3, cols = 3, start = 9, goal = 1, blocked = [] as number[], clickable = false, selected, onSelect }: { rows?: number; cols?: number; start?: number; goal?: number; blocked?: number[]; clickable?: boolean; selected?: number | null; onSelect?: (n: number) => void }) {
