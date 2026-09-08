@@ -51,13 +51,13 @@ const clawScenes = {
 
 function ClawScene({ variant }: { variant: keyof typeof clawScenes }) {
   const scene = clawScenes[variant];
-  const panel = (label: string, columns: readonly (readonly string[])[], showClaw = false) => <div className="scene-panel">
+  const panel = (label: string, columns: readonly (readonly string[])[], showClaw = false) => { const sourceColumn = Math.max(0, columns.findIndex(items => items.length > 0)); return <div className="scene-panel">
     <strong>{label}</strong>
     <div className="sorting-grid" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
-      {showClaw && <span className="robot-claw" role="img" aria-label="Garra robótica">🦾</span>}
+      {showClaw && <img className="robot-claw" src="/robotic-claw-arm.png" alt="Garra robótica" style={{ left: `${((sourceColumn + .5) / columns.length) * 100}%` }} />}
       {columns.map((items, column) => <div className="sorting-column" key={column}>{items.map((item, index) => <span className="recycle-object" role="img" aria-label={item === '🥫' ? 'lata' : 'garrafa'} key={`${column}-${index}`}>{item}</span>)}</div>)}
     </div>
-  </div>;
+  </div> };
   return <figure className="claw-scene" aria-label="Situação da garra de reciclagem">{panel('Garra de reciclagem', scene.current, true)}<span className="scene-arrow" aria-hidden="true">→</span>{panel('Estado-meta', scene.goal)}</figure>;
 }
 
