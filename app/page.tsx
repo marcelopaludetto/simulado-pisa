@@ -17,12 +17,12 @@ const questions = [
 
 const correct: Record<number, Answer> = {
   1: 'C', 2: 'direita', 3: '3,2', 4: 15,
-  5: 'repeat2,pick,right,place,left,endRepeat',
+  5: 'repeat:2,pick,right,place,left,endRepeat',
   6: 'repeat4,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat',
   7: 'repeat4,pick,ifBottle,right,place,left,else,left,place,right,endIf,endRepeat',
   8: 'repeat2,repeat3,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat,right,endRepeat',
 };
-const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : id >= 5 ? String(value ?? '').split(',').length >= 5 && String(value).includes('endRepeat') : value !== undefined && value !== null && value !== '';
+const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : id === 5 ? /^repeat:\d+,/.test(String(value ?? '')) && String(value).includes('endRepeat') : id >= 6 ? String(value ?? '').split(',').length >= 5 && String(value).includes('endRepeat') : value !== undefined && value !== null && value !== '';
 
 function MiniGrid({ rows = 3, cols = 3, start = 9, goal = 1, blocked = [] as number[], clickable = false, selected, onSelect }: { rows?: number; cols?: number; start?: number; goal?: number; blocked?: number[]; clickable?: boolean; selected?: number | null; onSelect?: (n: number) => void }) {
   return <div className="grid-board" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }} role={clickable ? 'radiogroup' : 'img'} aria-label="Grade do desafio">{Array.from({ length: rows * cols }, (_, i) => i + 1).map((cell) => <button key={cell} type="button" disabled={!clickable || blocked.includes(cell)} onClick={() => onSelect?.(cell)} className={`grid-cell ${blocked.includes(cell) ? 'blocked' : ''} ${cell === goal ? 'goal' : ''} ${cell === selected ? 'selected' : ''}`} aria-label={`Célula ${cell}${cell === start ? ', posição inicial' : ''}${cell === goal ? ', destino' : ''}`}>{cell === start && <span className="claw-dot" aria-hidden="true" />}{cell === goal && <span className="goal-mark" aria-hidden="true" />}</button>)}</div>;
@@ -75,17 +75,19 @@ const programmingBlocks = {
   endIf: { label: 'fim da condição', tone: 'condition-end' },
 } as const;
 
-type ProgrammingToken = keyof typeof programmingBlocks;
+type ProgrammingToken = keyof typeof programmingBlocks | `repeat:${string}`;
+
+const blockDefinition = (token: ProgrammingToken) => token.startsWith('repeat:') ? { label: 'repetir', tone: 'repeat' } : programmingBlocks[token as keyof typeof programmingBlocks];
 
 const palettes: Record<number, ProgrammingToken[]> = {
-  5: ['repeat2', 'pick', 'left', 'right', 'place', 'endRepeat'],
+  5: ['repeat:', 'pick', 'left', 'right', 'place', 'endRepeat'],
   6: ['repeat4', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
   7: ['repeat4', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
   8: ['repeat2', 'repeat3', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
 };
 
 function BlockEditor({ questionId, answer, setAnswer }: { questionId: number; answer: Answer; setAnswer: (v: Answer) => void }) {
-  const program = String(answer ?? '').split(',').filter(token => token in programmingBlocks) as ProgrammingToken[];
+  const program = String(answer ?? '').split(',').filter(token => token in programmingBlocks || token.startsWith('repeat:')) as ProgrammingToken[];
   const [dragged, setDragged] = useState<number | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'retry'>('idle');
   useEffect(() => setStatus('idle'), [questionId]);
@@ -97,15 +99,15 @@ function BlockEditor({ questionId, answer, setAnswer }: { questionId: number; an
   return <div className="block-editor">
     <div className="block-palette">
       <div className="editor-heading"><span>Blocos disponíveis</span><small>Clique para adicionar</small></div>
-      <div className="palette-list">{palettes[questionId].map(token => <button type="button" key={token} onClick={() => add(token)} className={`builder-block ${programmingBlocks[token].tone}`}>{programmingBlocks[token].label}<span aria-hidden="true">＋</span></button>)}</div>
+      <div className="palette-list">{palettes[questionId].map(token => { const definition = blockDefinition(token); return <button type="button" key={token} onClick={() => add(token)} className={`builder-block ${definition.tone}`}>{token === 'repeat:' ? 'repetir ___ vezes' : definition.label}<span aria-hidden="true">＋</span></button>})}</div>
     </div>
     <div className="program-workspace">
       <div className="editor-heading"><span>Meu programa</span><button type="button" onClick={() => update([])} disabled={!program.length}>Limpar</button></div>
       <div className={`workspace-dropzone ${!program.length ? 'empty' : ''}`} onDragOver={event => event.preventDefault()} onDrop={() => { if (dragged !== null) move(dragged, program.length - 1); setDragged(null); }}>
         {!program.length && <p>Adicione blocos. A execução acontece de cima para baixo.</p>}
-        {program.map((token, index) => <div className={`workspace-block-row level-${program.slice(0,index).filter(item => item.startsWith('repeat') || item === 'ifBottle').length - program.slice(0,index).filter(item => item === 'endRepeat' || item === 'endIf').length}`} key={`${token}-${index}`} draggable onDragStart={() => setDragged(index)} onDragOver={event => event.preventDefault()} onDrop={event => { event.stopPropagation(); if (dragged !== null) move(dragged, index); setDragged(null); }}>
-          <span className="drag-handle" aria-hidden="true">⠿</span><span className={`builder-block ${programmingBlocks[token].tone}`}>{programmingBlocks[token].label}</span><span className="block-actions"><button type="button" aria-label="Mover bloco para cima" onClick={() => move(index,index-1)}>↑</button><button type="button" aria-label="Mover bloco para baixo" onClick={() => move(index,index+1)}>↓</button><button type="button" aria-label="Excluir bloco" onClick={() => update(program.filter((_,i)=>i!==index))}>×</button></span>
-        </div>)}
+        {program.map((token, index) => { const definition = blockDefinition(token); return <div className={`workspace-block-row level-${program.slice(0,index).filter(item => item.startsWith('repeat') || item === 'ifBottle').length - program.slice(0,index).filter(item => item === 'endRepeat' || item === 'endIf').length}`} key={`${token}-${index}`} draggable onDragStart={() => setDragged(index)} onDragOver={event => event.preventDefault()} onDrop={event => { event.stopPropagation(); if (dragged !== null) move(dragged, index); setDragged(null); }}>
+          <span className="drag-handle" aria-hidden="true">⠿</span><span className={`builder-block ${definition.tone} ${token.startsWith('repeat:') ? 'repeat-input' : ''}`}>{token.startsWith('repeat:') ? <>repetir <input aria-label="Quantidade de repetições" type="number" min="1" max="9" placeholder=" " value={token.slice(7)} onPointerDown={event => event.stopPropagation()} onChange={event => update(program.map((item,i) => i === index ? `repeat:${event.target.value}` : item))}/> vezes</> : definition.label}</span><span className="block-actions"><button type="button" aria-label="Mover bloco para cima" onClick={() => move(index,index-1)}>↑</button><button type="button" aria-label="Mover bloco para baixo" onClick={() => move(index,index+1)}>↓</button><button type="button" aria-label="Excluir bloco" onClick={() => update(program.filter((_,i)=>i!==index))}>×</button></span>
+        </div>})}
       </div>
       <div className="run-row"><button type="button" className="run-program" onClick={run} disabled={!program.length}><span aria-hidden="true">▶</span> Executar programa</button>{status === 'success' && <p className="run-feedback success">✓ Meta alcançada</p>}{status === 'retry' && <p className="run-feedback retry">A meta ainda não foi alcançada. Revise a ordem e os blocos de controle.</p>}</div>
     </div>
