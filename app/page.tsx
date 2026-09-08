@@ -15,8 +15,14 @@ const questions = [
   { id: 8, stage: 'Aplicar', title: 'Generalizar a solução', skill: 'Resolução de problemas', points: 2 },
 ] as const;
 
-const correct: Record<number, Answer> = { 1: 'C', 2: 'direita', 3: '3,2', 4: 15, 5: 'B', 6: 'condicional', 7: 'repeticao', 8: 'C' };
-const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : value !== undefined && value !== null && value !== '';
+const correct: Record<number, Answer> = {
+  1: 'C', 2: 'direita', 3: '3,2', 4: 15,
+  5: 'repeat2,pick,right,place,left,endRepeat',
+  6: 'repeat4,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat',
+  7: 'repeat4,pick,ifBottle,right,place,left,else,left,place,right,endIf,endRepeat',
+  8: 'repeat2,repeat3,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat,right,endRepeat',
+};
+const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : id >= 5 ? String(value ?? '').split(',').length >= 5 && String(value).includes('endRepeat') : value !== undefined && value !== null && value !== '';
 
 function MiniGrid({ rows = 3, cols = 3, start = 9, goal = 1, blocked = [] as number[], clickable = false, selected, onSelect }: { rows?: number; cols?: number; start?: number; goal?: number; blocked?: number[]; clickable?: boolean; selected?: number | null; onSelect?: (n: number) => void }) {
   return <div className="grid-board" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }} role={clickable ? 'radiogroup' : 'img'} aria-label="Grade do desafio">{Array.from({ length: rows * cols }, (_, i) => i + 1).map((cell) => <button key={cell} type="button" disabled={!clickable || blocked.includes(cell)} onClick={() => onSelect?.(cell)} className={`grid-cell ${blocked.includes(cell) ? 'blocked' : ''} ${cell === goal ? 'goal' : ''} ${cell === selected ? 'selected' : ''}`} aria-label={`Célula ${cell}${cell === start ? ', posição inicial' : ''}${cell === goal ? ', destino' : ''}`}>{cell === start && <span className="claw-dot" aria-hidden="true" />}{cell === goal && <span className="goal-mark" aria-hidden="true" />}</button>)}</div>;
@@ -27,11 +33,11 @@ function Block({ children, tone = 'move' }: { children: React.ReactNode; tone?: 
 const clawScenes = {
   two: {
     current: [['🥫', '🥫'], [], [], []],
-    goal: [[], [], [], ['🥫', '🥫']],
+    goal: [[], ['🥫', '🥫'], [], []],
   },
   mixed: {
-    current: [['🧴', '🥫', '🥫', '🧴'], [], [], []],
-    goal: [[], ['🧴', '🧴'], [], ['🥫', '🥫']],
+    current: [[], ['🧴', '🥫', '🥫', '🧴'], [], []],
+    goal: [['🧴', '🧴'], [], ['🥫', '🥫'], []],
   },
   efficient: {
     current: [[], ['🧴', '🧴', '🥫', '🥫'], [], []],
@@ -47,12 +53,63 @@ function ClawScene({ variant }: { variant: keyof typeof clawScenes }) {
   const scene = clawScenes[variant];
   const panel = (label: string, columns: readonly (readonly string[])[], showClaw = false) => <div className="scene-panel">
     <strong>{label}</strong>
-    <div className="sorting-grid">
+    <div className="sorting-grid" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
       {showClaw && <span className="robot-claw" role="img" aria-label="Garra robótica">🦾</span>}
       {columns.map((items, column) => <div className="sorting-column" key={column}>{items.map((item, index) => <span className="recycle-object" role="img" aria-label={item === '🥫' ? 'lata' : 'garrafa'} key={`${column}-${index}`}>{item}</span>)}</div>)}
     </div>
   </div>;
   return <figure className="claw-scene" aria-label="Situação da garra de reciclagem">{panel('Garra de reciclagem', scene.current, true)}<span className="scene-arrow" aria-hidden="true">→</span>{panel('Estado-meta', scene.goal)}</figure>;
+}
+
+const programmingBlocks = {
+  repeat2: { label: 'repetir 2 vezes', tone: 'repeat' },
+  repeat3: { label: 'repetir 3 vezes', tone: 'repeat' },
+  repeat4: { label: 'repetir 4 vezes', tone: 'repeat' },
+  endRepeat: { label: 'fim da repetição', tone: 'repeat-end' },
+  pick: { label: 'pegar objeto', tone: 'move' },
+  left: { label: 'mover à esquerda', tone: 'move' },
+  right: { label: 'mover à direita', tone: 'move' },
+  place: { label: 'soltar objeto', tone: 'move' },
+  ifBottle: { label: 'se estiver segurando garrafa', tone: 'condition' },
+  else: { label: 'senão', tone: 'condition' },
+  endIf: { label: 'fim da condição', tone: 'condition-end' },
+} as const;
+
+type ProgrammingToken = keyof typeof programmingBlocks;
+
+const palettes: Record<number, ProgrammingToken[]> = {
+  5: ['repeat2', 'pick', 'left', 'right', 'place', 'endRepeat'],
+  6: ['repeat4', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
+  7: ['repeat4', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
+  8: ['repeat2', 'repeat3', 'pick', 'left', 'right', 'place', 'ifBottle', 'else', 'endIf', 'endRepeat'],
+};
+
+function BlockEditor({ questionId, answer, setAnswer }: { questionId: number; answer: Answer; setAnswer: (v: Answer) => void }) {
+  const program = String(answer ?? '').split(',').filter(token => token in programmingBlocks) as ProgrammingToken[];
+  const [dragged, setDragged] = useState<number | null>(null);
+  const [status, setStatus] = useState<'idle' | 'success' | 'retry'>('idle');
+  useEffect(() => setStatus('idle'), [questionId]);
+  const update = (next: ProgrammingToken[]) => { setAnswer(next.join(',')); setStatus('idle'); };
+  const add = (token: ProgrammingToken) => update([...program, token]);
+  const move = (from: number, to: number) => { if (to < 0 || to >= program.length) return; const next = [...program]; const [item] = next.splice(from, 1); next.splice(to, 0, item); update(next); };
+  const run = () => setStatus(String(answer ?? '') === correct[questionId] ? 'success' : 'retry');
+
+  return <div className="block-editor">
+    <div className="block-palette">
+      <div className="editor-heading"><span>Blocos disponíveis</span><small>Clique para adicionar</small></div>
+      <div className="palette-list">{palettes[questionId].map(token => <button type="button" key={token} onClick={() => add(token)} className={`builder-block ${programmingBlocks[token].tone}`}>{programmingBlocks[token].label}<span aria-hidden="true">＋</span></button>)}</div>
+    </div>
+    <div className="program-workspace">
+      <div className="editor-heading"><span>Meu programa</span><button type="button" onClick={() => update([])} disabled={!program.length}>Limpar</button></div>
+      <div className={`workspace-dropzone ${!program.length ? 'empty' : ''}`} onDragOver={event => event.preventDefault()} onDrop={() => { if (dragged !== null) move(dragged, program.length - 1); setDragged(null); }}>
+        {!program.length && <p>Adicione blocos. A execução acontece de cima para baixo.</p>}
+        {program.map((token, index) => <div className={`workspace-block-row level-${program.slice(0,index).filter(item => item.startsWith('repeat') || item === 'ifBottle').length - program.slice(0,index).filter(item => item === 'endRepeat' || item === 'endIf').length}`} key={`${token}-${index}`} draggable onDragStart={() => setDragged(index)} onDragOver={event => event.preventDefault()} onDrop={event => { event.stopPropagation(); if (dragged !== null) move(dragged, index); setDragged(null); }}>
+          <span className="drag-handle" aria-hidden="true">⠿</span><span className={`builder-block ${programmingBlocks[token].tone}`}>{programmingBlocks[token].label}</span><span className="block-actions"><button type="button" aria-label="Mover bloco para cima" onClick={() => move(index,index-1)}>↑</button><button type="button" aria-label="Mover bloco para baixo" onClick={() => move(index,index+1)}>↓</button><button type="button" aria-label="Excluir bloco" onClick={() => update(program.filter((_,i)=>i!==index))}>×</button></span>
+        </div>)}
+      </div>
+      <div className="run-row"><button type="button" className="run-program" onClick={run} disabled={!program.length}><span aria-hidden="true">▶</span> Executar programa</button>{status === 'success' && <p className="run-feedback success">✓ Meta alcançada</p>}{status === 'retry' && <p className="run-feedback retry">A meta ainda não foi alcançada. Revise a ordem e os blocos de controle.</p>}</div>
+    </div>
+  </div>;
 }
 
 function RadioCards({ value, onChange, options }: { value: Answer; onChange: (v: string) => void; options: { value: string; label: React.ReactNode }[] }) {
@@ -64,10 +121,10 @@ function QuestionBody({ id, answer, setAnswer }: { id: number; answer: Answer; s
   if (id === 2) return <><p className="prompt">O programa deve levar a garra ao quadrado cinza sem tocar nos quadrados pretos. Qual comando está faltando?</p><div className="stimulus"><div className="program"><Block tone="event">início</Block><Block>mover para a esquerda</Block><Block>mover para cima</Block><Block tone="repeat">repetir 3 vezes</Block><span className="indent"><Block>?</Block></span><Block>mover para baixo</Block><Block>mover para baixo</Block></div><MiniGrid rows={4} cols={4} start={14} goal={16} blocked={[4,10,11,15]} /></div><RadioCards value={answer} onChange={setAnswer} options={['cima','baixo','esquerda','direita'].map(v => ({ value: v, label: `Mover para ${v}` }))} /></>;
   if (id === 3) { const [a,b] = String(answer ?? ',').split(','); return <><p className="prompt">Complete os dois blocos de repetição com o menor número de execuções necessário para alcançar o destino.</p><div className="stimulus"><MiniGrid rows={4} cols={7} start={22} goal={7} /><div className="program large"><Block tone="event">início</Block><Block tone="repeat">repetir <input aria-label="Número de repetições do bloco externo" type="number" min="0" max="9" value={a || ''} onChange={e => setAnswer(`${e.target.value},${b || ''}`)} /> vezes</Block><span className="repeat-body"><Block tone="repeat">repetir <input aria-label="Número de repetições do bloco interno" type="number" min="0" max="9" value={b || ''} onChange={e => setAnswer(`${a || ''},${e.target.value}`)} /> vezes</Block><span className="repeat-body nested"><Block>mover para a direita</Block></span><Block>mover para cima</Block></span></div></div></> }
   if (id === 4) return <><p className="prompt">Execute mentalmente o programa. Clique na casa em que a garra terminará.</p><div className="stimulus"><div className="program"><Block tone="event">início</Block><Block>mover para a direita</Block><Block tone="repeat">repetir 3 vezes</Block><span className="indent"><Block tone="condition">se a garra estiver em uma casa cinza</Block><span className="indent"><Block>mover para baixo</Block></span><Block tone="condition">senão</Block><span className="indent"><Block>mover para a direita</Block></span></span></div><MiniGrid rows={6} cols={6} start={1} goal={0} clickable selected={typeof answer === 'number' ? answer : null} onSelect={setAnswer} /></div></>;
-  if (id === 5) return <><p className="prompt">A garra deve transportar duas latas, uma de cada vez, para a coluna de destino. Qual programa cumpre a meta usando repetição?</p><ClawScene variant="two"/><RadioCards value={answer} onChange={setAnswer} options={[{ value:'A', label:<span className="inline-program"><Block tone="repeat">repetir 2</Block><Block>pegar</Block><Block>direita</Block><Block>soltar</Block></span>},{ value:'B', label:<span className="inline-program"><Block tone="repeat">repetir 2</Block><Block>pegar</Block><Block>direita</Block><Block>soltar</Block><Block>esquerda</Block></span>},{ value:'C', label:<span className="inline-program"><Block>pegar</Block><Block tone="repeat">repetir 2</Block><Block>direita</Block><Block>soltar</Block></span>}]} /></>;
-  if (id === 6) return <><p className="prompt">Agora há latas e garrafas, que devem ir para colunas diferentes. Que estrutura permite à garra escolher uma ação conforme o objeto segurado?</p><ClawScene variant="mixed"/><RadioCards value={answer} onChange={setAnswer} options={[{value:'sequencia',label:'Uma sequência mais longa de movimentos'},{value:'condicional',label:<span><strong>Se… então… senão</strong>, testando o tipo de objeto</span>},{value:'velocidade',label:'Um controle de velocidade da execução'},{value:'recomeco',label:'Reiniciar o programa após cada objeto'}]} /></>;
-  if (id === 7) return <><p className="prompt">A mesma rotina precisa ordenar vários objetos em duas colunas. Qual estratégia tende a usar menos blocos sem mudar o resultado?</p><ClawScene variant="efficient"/><RadioCards value={answer} onChange={setAnswer} options={[{value:'copiar',label:'Copiar a sequência completa para cada objeto'},{value:'repeticao',label:'Agrupar a rotina em repetições, usando uma condição quando necessário'},{value:'aleatorio',label:'Mover a garra aleatoriamente até a meta aparecer'},{value:'pausas',label:'Adicionar pausas entre todos os movimentos'}]} /></>;
-  return <><p className="prompt">No desafio final, há duas colunas de objetos misturados e duas colunas de destino. Qual plano é mais geral, correto e eficiente?</p><ClawScene variant="final"/><RadioCards value={answer} onChange={setAnswer} options={[{value:'A',label:'Executar uma lista fixa de movimentos, sem observar o objeto.'},{value:'B',label:'Mover primeiro todos os objetos e decidir o destino somente no final.'},{value:'C',label:'Repetir: pegar um objeto, identificar seu tipo, levá-lo à coluna correta, soltar e voltar.'},{value:'D',label:'Escolher uma coluna ao acaso e corrigir apenas se houver espaço.'}]} /></>;
+  if (id === 5) return <><p className="prompt">Programe a garra para transportar as duas latas, uma de cada vez, usando uma repetição.</p><ClawScene variant="two"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  if (id === 6) return <><p className="prompt">Programe a garra para separar quatro objetos. Garrafas vão para a esquerda e latas para a direita.</p><ClawScene variant="mixed"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  if (id === 7) return <><p className="prompt">Monte um programa eficiente para ordenar os quatro objetos, usando repetição e uma condição.</p><ClawScene variant="efficient"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  return <><p className="prompt">Programe a garra para ordenar as duas colunas. Use uma repetição para as colunas e outra para os objetos de cada coluna.</p><ClawScene variant="final"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
 }
 
 export default function Home() {
