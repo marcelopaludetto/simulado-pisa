@@ -16,7 +16,7 @@ const questions = [
 ] as const;
 
 const correct: Record<number, Answer> = {
-  1: 'C', 2: 'direita', 3: '3,2', 4: 15,
+  1: 'C', 2: 'direita', 3: '3,2', 4: 20,
   5: 'repeat:2,pick,right,place,left,endRepeat',
   6: 'repeat4,pick,ifBottle,left,place,right,else,right,place,left,endIf,endRepeat',
   7: 'repeat4,pick,ifBottle,right,place,left,else,left,place,right,endIf,endRepeat',
