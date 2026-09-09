@@ -1,8 +1,8 @@
-<svg width="2277" height="1214" viewBox="0 0 2277 1214" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<rect width="2277" height="1213.19" fill="url(#pattern0_188_1249)" clip-path="url(#logoOnly)"/>
+<svg width="503" height="268" viewBox="0 0 503 268" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect width="503" height="268" fill="url(#pattern0_188_1249)" clip-path="url(#logoOnly)"/>
 <defs>
 <clipPath id="logoOnly">
-<rect width="2277" height="900"/>
+<rect width="503" height="268"/>
 </clipPath>
 <pattern id="pattern0_188_1249" patternContentUnits="objectBoundingBox" width="1" height="1">
 <use xlink:href="#image0_188_1249" transform="scale(0.00198807 0.00373134)"/>
