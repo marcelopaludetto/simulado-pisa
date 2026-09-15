@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { reachesQuestionEightGoal } from './program-validation';
+import { evaluateProgram } from './program-validation';
 import { calculateResult, itemDifficulties, proficiencyLevel } from './scoring';
 
 type Answer = string | number | null;
@@ -26,7 +26,7 @@ const correct: Record<number, Answer> = {
 };
 const programmingTokenPattern = /^(?:repeat[234]|repeat:\d+|pick|left|right|place|ifBottle|else|endIf|endRepeat)$/;
 const normalizeProgrammingAnswer = (value: Answer | undefined) => String(value ?? '').split(',').map(token => token.trim()).filter(token => programmingTokenPattern.test(token)).join(',');
-const isCorrectAnswer = (id: number, value: Answer | undefined) => id === 8 ? reachesQuestionEightGoal(normalizeProgrammingAnswer(value).split(',')) : id >= 5 ? normalizeProgrammingAnswer(value) === correct[id] : value === correct[id];
+const isCorrectAnswer = (id: number, value: Answer | undefined) => id >= 5 ? evaluateProgram(id, normalizeProgrammingAnswer(value).split(',')).correct : value === correct[id];
 const hasAnswer = (id: number, value: Answer | undefined) => id === 3 ? /^\d+,\d+$/.test(String(value ?? '')) : id >= 5 ? String(value ?? '').split(',').some(token => token.trim() !== '') : value !== undefined && value !== null && value !== '';
 const numberAsset = (id: number, state: 'Padrão' | 'Inativo' | 'Concluído') => {
   const fileState = state === 'Padrão' ? 'default' : state === 'Inativo' ? 'inactive' : 'complete';
@@ -110,11 +110,16 @@ function BlockEditor({ questionId, answer, setAnswer }: { questionId: number; an
   const program = String(answer ?? '').split(',').filter(token => token in programmingBlocks || token.startsWith('repeat:')) as ProgrammingToken[];
   const [dragged, setDragged] = useState<number | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'retry'>('idle');
-  useEffect(() => setStatus('idle'), [questionId]);
-  const update = (next: ProgrammingToken[]) => { setAnswer(next.join(',')); setStatus('idle'); };
+  const [feedback, setFeedback] = useState('');
+  useEffect(() => { setStatus('idle'); setFeedback(''); }, [questionId]);
+  const update = (next: ProgrammingToken[]) => { setAnswer(next.join(',')); setStatus('idle'); setFeedback(''); };
   const add = (token: ProgrammingToken) => update([...program, token]);
   const move = (from: number, to: number) => { if (to < 0 || to >= program.length) return; const next = [...program]; const [item] = next.splice(from, 1); next.splice(to, 0, item); update(next); };
-  const run = () => setStatus(isCorrectAnswer(questionId, program.join(',')) ? 'success' : 'retry');
+  const run = () => {
+    const outcome = evaluateProgram(questionId, normalizeProgrammingAnswer(program.join(',')).split(','));
+    setStatus(outcome.correct ? 'success' : 'retry');
+    setFeedback(outcome.correct ? '' : outcome.reachesGoal ? outcome.formHint : 'A meta ainda não foi alcançada. Revise a ordem e os blocos de controle.');
+  };
 
   return <div className="block-editor">
     <div className="block-palette">
@@ -129,7 +134,7 @@ function BlockEditor({ questionId, answer, setAnswer }: { questionId: number; an
           <span className="drag-handle" aria-hidden="true">⠿</span><span className={`builder-block ${definition.tone} ${token.startsWith('repeat:') ? 'repeat-input' : ''}`}>{token.startsWith('repeat:') ? <>repetir <input aria-label="Quantidade de repetições" type="number" min="1" max="9" placeholder=" " value={token.slice(7)} onPointerDown={event => event.stopPropagation()} onChange={event => update(program.map((item,i) => i === index ? `repeat:${event.target.value}` : item))}/> vezes</> : definition.label}</span><span className="block-actions"><button type="button" aria-label="Mover bloco para cima" onClick={() => move(index,index-1)}>↑</button><button type="button" aria-label="Mover bloco para baixo" onClick={() => move(index,index+1)}>↓</button><button type="button" aria-label="Excluir bloco" onClick={() => update(program.filter((_,i)=>i!==index))}>×</button></span>
         </div>})}
       </div>
-      <div className="run-row"><button type="button" className="run-program" onClick={run} disabled={!program.length}><span aria-hidden="true">▶</span> Executar programa</button>{status === 'success' && <p className="run-feedback success">✓ Meta alcançada</p>}{status === 'retry' && <p className="run-feedback retry">A meta ainda não foi alcançada. Revise a ordem e os blocos de controle.</p>}</div>
+      <div className="run-row"><button type="button" className="run-program" onClick={run} disabled={!program.length}><span aria-hidden="true">▶</span> Executar programa</button>{status === 'success' && <p className="run-feedback success">✓ Meta alcançada</p>}{status === 'retry' && <p className="run-feedback retry">{feedback}</p>}</div>
     </div>
   </div>;
 }
@@ -144,8 +149,8 @@ function QuestionBody({ id, answer, setAnswer }: { id: number; answer: Answer; s
   if (id === 3) { const [a,b] = String(answer ?? ',').split(','); return <><p className="prompt">Complete os dois blocos de repetição com o menor número de execuções necessário para alcançar o destino.</p><div className="stimulus"><MiniGrid rows={4} cols={7} start={22} goal={7} /><div className="program large"><Block tone="event">início</Block><Block tone="repeat">repetir <input aria-label="Número de repetições do bloco externo" type="number" min="0" max="9" value={a || ''} onChange={e => setAnswer(`${e.target.value},${b || ''}`)} /> vezes</Block><span className="repeat-body"><Block tone="repeat">repetir <input aria-label="Número de repetições do bloco interno" type="number" min="0" max="9" value={b || ''} onChange={e => setAnswer(`${a || ''},${e.target.value}`)} /> vezes</Block><span className="repeat-body nested"><Block>mover para a direita</Block></span><Block>mover para cima</Block></span></div></div></> }
   if (id === 4) return <><p className="prompt">Execute mentalmente o programa. Clique na casa em que a garra terminará.</p><div className="stimulus"><div className="program"><Block tone="event">início</Block><Block>mover para a direita</Block><Block tone="repeat">repetir 3 vezes</Block><span className="indent"><Block tone="condition">se a garra estiver em uma casa cinza</Block><span className="indent"><Block>mover para baixo</Block></span><Block tone="condition">senão</Block><span className="indent"><Block>mover para a direita</Block></span></span></div><MiniGrid rows={6} cols={6} start={1} goal={0} clickable selected={typeof answer === 'number' ? answer : null} onSelect={setAnswer} /></div></>;
   if (id === 5) return <><p className="prompt">Programe a garra para transportar as duas latas, uma de cada vez, usando uma repetição.</p><ClawScene variant="two"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
-  if (id === 6) return <><p className="prompt">Programe a garra para separar quatro objetos. Garrafas vão para a esquerda e latas para a direita.</p><ClawScene variant="mixed"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
-  if (id === 7) return <><p className="prompt">Monte um programa eficiente para ordenar os quatro objetos, usando repetição e uma condição.</p><ClawScene variant="efficient"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  if (id === 6) return <><p className="prompt">Programe a garra para separar os quatro objetos usando uma repetição e uma condição. Garrafas vão para a esquerda e latas vão para a direita.</p><ClawScene variant="mixed"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
+  if (id === 7) return <><p className="prompt">Programe a garra para separar os quatro objetos usando uma única repetição. Latas vão para a esquerda e garrafas vão para a direita.</p><ClawScene variant="efficient"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
   return <><p className="prompt">Programe a garra para ordenar os três objetos de cada coluna. Ao final, a coluna 3 deve ter somente garrafas e a coluna 4 somente latas.</p><ClawScene variant="final"/><BlockEditor questionId={id} answer={answer} setAnswer={setAnswer}/></>;
 }
 

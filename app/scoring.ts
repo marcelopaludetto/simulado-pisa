@@ -21,6 +21,12 @@ export function proficiencyLevel(score: number) {
   return '6';
 }
 
+/** Fechamentos de laço e de condição não são blocos que o aluno escolhe: em
+ *  programação em blocos o bloco de repetição já envolve o corpo. Contam como
+ *  marcação, não como custo do programa. */
+const closingTokens = ['endRepeat', 'endIf'];
+const countBlocks = (tokens: string[]) => tokens.filter(token => !closingTokens.includes(token)).length;
+
 function programCredit(id: number, answer: AssessmentAnswer, reachedGoal: boolean) {
   const tokens = String(answer ?? '').split(',').map(token => token.trim()).filter(Boolean);
   if (!tokens.length) return 0;
@@ -31,8 +37,8 @@ function programCredit(id: number, answer: AssessmentAnswer, reachedGoal: boolea
   const hasRepeat = tokens.some(token => token.startsWith('repeat')) && tokens.includes('endRepeat');
   const hasCondition = tokens.includes('ifBottle') && tokens.includes('else') && tokens.includes('endIf');
 
-  if (id === 5 && hasPickAndPlace && hasMovement && hasRepeat) return tokens.length <= 9 ? 4 : 3;
-  if (id >= 6 && hasPickAndPlace && hasMovement && hasRepeat && hasCondition) return tokens.length <= 16 ? 4 : 3;
+  if (id === 5 && hasPickAndPlace && hasMovement && hasRepeat) return countBlocks(tokens) <= 8 ? 4 : 3;
+  if (id >= 6 && hasPickAndPlace && hasMovement && hasRepeat && hasCondition) return countBlocks(tokens) <= 14 ? 4 : 3;
   if (hasPickAndPlace && hasMovement) return 2;
   return 1;
 }
